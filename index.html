@@ -2,47 +2,108 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Model Viewer - Device Adaptive</title>
+  <title>Premium 3D Model Viewer</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.loaders.min.js"></script>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      background: transparent;
+      font-family: 'Arial', sans-serif;
+      touch-action: none;
     }
+
     #loading {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
-      padding: 20px;
-      background: rgba(0,0,0,0.8);
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
       color: white;
-      text-align: center;
       z-index: 1000;
+      transition: opacity 0.5s ease-out;
     }
-    #debug {
+
+    .loading-spinner {
+      border: 5px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      border-top: 5px solid #4CAF50;
+      width: 50px;
+      height: 50px;
+      animation: spin 1.2s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    #loading-text {
+      font-size: 1.2em;
+      margin-top: 15px;
+      text-align: center;
+      max-width: 80%;
+    }
+
+    #controls {
       position: fixed;
-      bottom: 0;
+      bottom: 25px;
       left: 0;
       width: 100%;
-      height: 30%;
-      background: rgba(0,0,0,0.7);
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      z-index: 1001;
+      padding: 10px 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+    }
+
+    button {
+      background: rgba(40, 40, 40, 0.8);
       color: white;
-      padding: 10px;
-      overflow-y: auto;
-      font-family: monospace;
-      z-index: 999;
-      display: none; /* Hidden by default */
+      border: none;
+      border-radius: 25px;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      min-width: 120px;
     }
-    .bounding-box {
-      position: absolute;
-      border: 2px solid red;
-      pointer-events: none;
-      z-index: 998;
+
+    button:hover {
+      background: rgba(70, 70, 70, 0.9);
+      transform: translateY(-2px);
     }
-    .camera-feed {
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    #help-text {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      color: white;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 1001;
+      text-align: center;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    #camera-feed {
       position: fixed;
       top: 0;
       left: 0;
@@ -50,271 +111,641 @@
       height: 100%;
       object-fit: cover;
       z-index: -1;
+      opacity: 0.9;
     }
-    #toggle-debug {
+
+    #view-360-btn {
       position: fixed;
-      bottom: 10px;
-      right: 10px;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 1001;
-      padding: 5px 10px;
-      background: rgba(0,0,0,0.7);
+      background: rgba(30, 136, 229, 0.9);
+    }
+
+    #view-360-btn:hover {
+      background: rgba(30, 136, 229, 1);
+    }
+
+    /* Modal styles */
+    #modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      display: none;
+      z-index: 2000;
+    }
+
+    #modal-overlay.active {
+      display: block;
+    }
+
+    #modal-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      height: 80%;
+      max-width: 900px;
+    }
+
+    #modal-scene {
+      width: 100%;
+      height: 100%;
+    }
+
+    #modal-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      padding: 15px 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+    }
+
+    .modal-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 50px;
+      height: 50px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
       color: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      z-index: 100;
       border: none;
-      border-radius: 4px;
+    }
+
+    .modal-arrow:hover {
+      background: rgba(255,255,255,0.4);
+    }
+
+    #modal-arrow-left {
+      left: 20px;
+    }
+
+    #modal-arrow-right {
+      right: 20px;
+    }
+
+    #close-modal {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 100;
+      transition: all 0.3s;
+    }
+
+    #close-modal:hover {
+      background: rgba(255,255,255,0.4);
+    }
+
+    #zoom-indicator {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+
+    #zoom-indicator.show {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      #controls {
+        bottom: 15px;
+        gap: 8px;
+      }
+      
+      button {
+        padding: 10px 15px;
+        font-size: 13px;
+        min-width: auto;
+      }
+      
+      #view-360-btn {
+        bottom: 80px;
+        padding: 10px 15px;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="loading">Initializing viewer...</div>
-  <div id="debug">Debug console starting...</div>
-  <button id="toggle-debug">Toggle Debug</button>
-  <div id="bounding-box" class="bounding-box" style="display:none;"></div>
+  <div id="loading">
+    <div class="loading-spinner"></div>
+    <div id="loading-text">Loading premium 3D experience...</div>
+  </div>
   
-  <video id="camera-feed" class="camera-feed" autoplay playsinline style="display:none;"></video>
+  <div id="help-text">
+    <span id="desktop-help">Desktop: Left drag to rotate • Right drag to pan • Scroll to zoom</span>
+    <span id="mobile-help" style="display:none">Touch and drag to rotate • Pinch to zoom</span>
+  </div>
+  
+  <div id="controls">
+    <button id="toggle-rotation">⏸ Pause</button>
+    <button id="reset-view">↻ Reset</button>
+    <button id="toggle-camera">📷 Toggle AR</button>
+  </div>
 
-  <a-scene id="scene" renderer="logarithmicDepthBuffer: true;">
-    <!-- Assets will be added dynamically -->
+  <button id="view-360-btn">🌐 360° View</button>
+
+  <!-- Camera feed for background -->
+  <video id="camera-feed" autoplay playsinline></video>
+
+  <!-- 360° Modal View -->
+  <div id="modal-overlay">
+    <button id="close-modal">×</button>
+    <div id="zoom-indicator">Double-tap to zoom</div>
+    <div id="modal-container">
+      <a-scene id="modal-scene" 
+               renderer="antialias: true; logarithmicDepthBuffer: true;"
+               vr-mode-ui="enabled: false">
+        
+        <a-assets>
+          <a-asset-item id="modal-main-model" src="https://raw.githubusercontent.com/dontmatch/3Dmodel/refs/heads/main/scene.gltf"></a-asset-item>
+          <a-asset-item id="modal-fallback-model" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf"></a-asset-item>
+        </a-assets>
+        
+        <a-entity id="modal-model-container" position="0 0 -1.5" rotation="0 90 0" scale="1.5 1.5 1.5">
+          <!-- Model will be placed here -->
+        </a-entity>
+        
+        <a-entity id="modal-camera" camera="zoom: 1" position="0 0 0" look-controls="enabled: false">
+          <a-cursor></a-cursor>
+        </a-entity>
+        
+        <a-light type="ambient" color="#FFF" intensity="0.8"></a-light>
+        <a-light type="directional" color="#FFF" intensity="1.2" position="-1 2 1"></a-light>
+        <a-light type="directional" color="#FFF" intensity="0.5" position="1 1 1"></a-light>
+      </a-scene>
+      
+      <button class="modal-arrow" id="modal-arrow-left">←</button>
+      <button class="modal-arrow" id="modal-arrow-right">→</button>
+      
+      <div id="modal-controls">
+        <button id="modal-toggle-rotation">⏸ Pause</button>
+        <button id="modal-reset-view">↻ Reset</button>
+        <button id="modal-reset-zoom">🔍 Reset Zoom</button>
+      </div>
+    </div>
+  </div>
+
+  <a-scene id="scene" 
+           renderer="antialias: true; logarithmicDepthBuffer: true;"
+           vr-mode-ui="enabled: false">
+    
+    <a-assets>
+      <a-asset-item id="main-model" src="https://raw.githubusercontent.com/dontmatch/3Dmodel/refs/heads/main/scene.gltf"></a-asset-item>
+      <a-asset-item id="fallback-model" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf"></a-asset-item>
+    </a-assets>
+    
+    <a-entity id="model-container" position="0 0.5 -1" rotation="0 0 0" scale="1.5 1.5 1.5">
+      <!-- Model will be placed here -->
+    </a-entity>
+    
+    <a-entity camera position="0 1.5 2" look-controls="enabled: false">
+      <a-cursor></a-cursor>
+    </a-entity>
+    
+    <a-entity id="orbit-controls" 
+              orbit-controls="
+                target: #model-container;
+                enableDamping: true;
+                dampingFactor: 0.25;
+                rotateSpeed: 0.8;
+                zoomSpeed: 1;
+                minDistance: 0.3;
+                maxDistance: 5;
+                enablePan: true;
+                panSpeed: 0.8;
+                initialPosition: 0 1.5 1.5;
+              ">
+    </a-entity>
+    
+    <a-light type="ambient" color="#FFF" intensity="0.8"></a-light>
+    <a-light type="directional" color="#FFF" intensity="1.0" position="-1 2 1"></a-light>
+    <a-light type="hemilight" color="#FFF" groundColor="#AAA" intensity="0.5" position="0 1 0"></a-light>
   </a-scene>
 
   <script>
-    // Configuration
+    // Enhanced Configuration
     const CONFIG = {
-      modelUrl: "https://raw.githubusercontent.com/dontmatch/3Dmodel/refs/heads/main/scene.gltf",
-      fallbackModelUrl: "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf",
-      arMarkerType: "pattern", // "pattern" or "nft"
-      patternMarkerUrl: "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro",
-      modelScale: "0.05 0.05 0.05",
-      modelPosition: "0 1.5 0",
-      modelRotation: "0 180 0"
+      rotationSpeed: 0.8,
+      modelPosition: "0 0.5 -1",
+      cameraActive: true,
+      modalRotationSpeed: 0.5,
+      modalAngles: [0, 90, 180, 270],
+      modalTransitionDuration: 600,
+      modalZoomLevels: [1, 1.8],
+      zoomTransitionDuration: 400,
+      modalSideViewAngle: 90,
+      modalDefaultPosition: "0 0 -1.5",
+      isMobile: /Mobi|Android/i.test(navigator.userAgent)
     };
 
-    const debug = document.getElementById('debug');
+    // DOM elements
     const loading = document.getElementById('loading');
-    const boundingBox = document.getElementById('bounding-box');
-    const scene = document.getElementById('scene');
+    const loadingText = document.getElementById('loading-text');
+    const scene = document.querySelector('a-scene');
+    const modelContainer = document.getElementById('model-container');
+    const toggleRotationBtn = document.getElementById('toggle-rotation');
+    const resetViewBtn = document.getElementById('reset-view');
+    const toggleCameraBtn = document.getElementById('toggle-camera');
     const cameraFeed = document.getElementById('camera-feed');
-    const toggleDebug = document.getElementById('toggle-debug');
-    
-    // Device detection
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    
-    function log(message) {
-      debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
-      debug.scrollTop = debug.scrollHeight;
-      console.log(message);
+    const helpText = document.getElementById('help-text');
+    const desktopHelp = document.getElementById('desktop-help');
+    const mobileHelp = document.getElementById('mobile-help');
+    const view360Btn = document.getElementById('view-360-btn');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalScene = document.getElementById('modal-scene');
+    const modalModelContainer = document.getElementById('modal-model-container');
+    const modalCamera = document.getElementById('modal-camera');
+    const modalToggleRotationBtn = document.getElementById('modal-toggle-rotation');
+    const modalResetViewBtn = document.getElementById('modal-reset-view');
+    const modalResetZoomBtn = document.getElementById('modal-reset-zoom');
+    const modalArrowLeft = document.getElementById('modal-arrow-left');
+    const modalArrowRight = document.getElementById('modal-arrow-right');
+    const closeModalBtn = document.getElementById('close-modal');
+    const zoomIndicator = document.getElementById('zoom-indicator');
+
+    // App state
+    let isRotating = true;
+    let currentModel = null;
+    let usingFallback = false;
+    let modalIsRotating = true;
+    let modalCurrentModel = null;
+    let modalUsingFallback = false;
+    let currentModalAngleIndex = 1; // Start at side view (90°)
+    let isModalTransitioning = false;
+    let currentZoomIndex = 0;
+    let lastClickTime = 0;
+    let zoomTimeout = null;
+
+    // Show appropriate help text
+    if (CONFIG.isMobile) {
+      desktopHelp.style.display = 'none';
+      mobileHelp.style.display = 'inline';
     }
-    
-    function initializeViewer() {
-      toggleDebug.addEventListener('click', () => {
-        debug.style.display = debug.style.display === 'none' ? 'block' : 'none';
-      });
-      
-      if (isMobile) {
-        log("Mobile device detected - loading AR mode");
-        loadARjs().then(initializeARView);
-      } else {
-        log("Desktop device detected - loading 3D viewer");
-        tryEnableDesktopCamera().then(initialize3DView);
+
+    // Initialize camera
+    async function initializeCamera() {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          });
+          cameraFeed.srcObject = stream;
+          cameraFeed.style.display = 'block';
+          scene.setAttribute('background', 'transparent: true');
+          return true;
+        }
+      } catch (error) {
+        console.error("Camera error:", error);
+        cameraFeed.style.display = 'none';
+        scene.setAttribute('background', 'color: #333');
+        return false;
       }
     }
-    
-    function loadARjs() {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = 'https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js';
-        script.onload = resolve;
-        document.head.appendChild(script);
+
+    // Load the main model with enhanced error handling
+    function loadModel() {
+      loadingText.textContent = "Loading premium 3D model...";
+      
+      currentModel = document.createElement('a-entity');
+      currentModel.setAttribute('gltf-model', usingFallback ? '#fallback-model' : '#main-model');
+      currentModel.setAttribute('scale', "1 1 1");
+      currentModel.setAttribute('shadow', "receive: true");
+      currentModel.setAttribute('id', 'current-model');
+      
+      modelContainer.appendChild(currentModel);
+      
+      currentModel.addEventListener('model-loaded', () => {
+        optimizeModelView();
+        setTimeout(() => {
+          loading.style.opacity = '0';
+          setTimeout(() => loading.style.display = 'none', 500);
+        }, 500);
+        
+        if (usingFallback) {
+          loadingText.textContent = "Using high-quality fallback model";
+        }
       });
-    }
-    
-    function tryEnableDesktopCamera() {
-      return new Promise((resolve) => {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          navigator.mediaDevices.getUserMedia({ video: true })
-            .then((stream) => {
-              cameraFeed.srcObject = stream;
-              cameraFeed.style.display = 'block';
-              log("Desktop camera enabled");
-              resolve();
-            })
-            .catch((error) => {
-              log(`Could not access camera: ${error.message}`);
-              resolve(); // Continue without camera
-            });
+      
+      currentModel.addEventListener('error', (e) => {
+        console.error("Model error:", e);
+        
+        if (!usingFallback) {
+          usingFallback = true;
+          modelContainer.removeChild(currentModel);
+          loadModel();
         } else {
-          resolve(); // No camera support
+          loadingText.textContent = "Failed to load models - please check your connection";
         }
       });
     }
-    
-    function initializeARView() {
-      log("Initializing AR view");
+
+    // Load the modal model
+    function loadModalModel() {
+      modalCurrentModel = document.createElement('a-entity');
+      modalCurrentModel.setAttribute('gltf-model', modalUsingFallback ? '#modal-fallback-model' : '#modal-main-model');
+      modalCurrentModel.setAttribute('scale', "1 1 1");
+      modalCurrentModel.setAttribute('shadow', "receive: true");
+      modalCurrentModel.setAttribute('id', 'modal-current-model');
       
-      scene.setAttribute('embedded', '');
-      scene.setAttribute('arjs', `sourceType: webcam;
-        detectionMode: mono_and_matrix;
-        matrixCodeType: 3x3;
-        debugUIEnabled: false;`);
+      modalModelContainer.appendChild(modalCurrentModel);
       
-      // Add AR components
-      scene.innerHTML = `
-        <a-assets>
-          <a-asset-item id="model-asset" src="${CONFIG.modelUrl}"></a-asset-item>
-        </a-assets>
+      modalCurrentModel.addEventListener('model-loaded', () => {
+        optimizeModalModelView();
         
-        <a-marker preset="hiro" emitevents="true" id="marker">
-          <a-entity
-            id="model"
-            gltf-model="#model-asset"
-            scale="${CONFIG.modelScale}"
-            position="${CONFIG.modelPosition}"
-            rotation="${CONFIG.modelRotation}"
-          ></a-entity>
-        </a-marker>
-        <a-entity camera></a-entity>
-      `;
-      
-      setupModelHandlers();
-      setupAREventHandlers();
-    }
-    
-    function initialize3DView() {
-      log("Initializing 3D view");
-      
-      scene.innerHTML = `
-        <a-assets>
-          <a-asset-item id="model-asset" src="${CONFIG.modelUrl}"></a-asset-item>
-        </a-assets>
-        
-        <a-entity
-          id="model"
-          gltf-model="#model-asset"
-          scale="${CONFIG.modelScale}"
-          position="0 1.6 -3"
-          rotation="${CONFIG.modelRotation}"
-        ></a-entity>
-        
-        <a-camera>
-          <a-cursor></a-cursor>
-        </a-camera>
-        
-        <a-light type="ambient" intensity="0.8"></a-light>
-        <a-light type="directional" intensity="0.5" position="-1 1 2"></a-light>
-      `;
-      
-      setupModelHandlers();
-      setupDesktopControls();
-    }
-    
-    function setupAREventHandlers() {
-      const marker = document.getElementById('marker');
-      
-      marker.addEventListener('markerFound', () => {
-        log("Marker detected");
-        loading.style.display = 'none';
+        if (modalUsingFallback) {
+          console.log("Using fallback model in modal");
+        }
       });
       
-      marker.addEventListener('markerLost', () => {
-        log("Marker lost");
-        loading.style.display = 'block';
-        loading.innerHTML = "Point your camera at the marker";
+      modalCurrentModel.addEventListener('error', (e) => {
+        console.error("Modal model error:", e);
+        
+        if (!modalUsingFallback) {
+          modalUsingFallback = true;
+          modalModelContainer.removeChild(modalCurrentModel);
+          loadModalModel();
+        }
       });
     }
-    
-    function setupModelHandlers() {
-      const model = document.getElementById('model');
+
+    // Optimize model view with enhanced centering
+    function optimizeModelView() {
+      if (!currentModel || !currentModel.object3D) return;
       
-      model.addEventListener('model-loaded', () => {
-        log("✓ Model loaded successfully");
-        
-        setTimeout(() => {
-          const bbox = new THREE.Box3().setFromObject(model.object3D);
-          if (bbox.isEmpty()) {
-            log("⚠ Model loaded but bounding box is empty");
-            showFallbackModel();
-          } else {
-            log(`Model dimensions: ${bbox.getSize(new THREE.Vector3()).toArray()}`);
-            updateBoundingBox(bbox);
+      const box = new THREE.Box3().setFromObject(currentModel.object3D);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.8 / maxDim;
+      
+      currentModel.setAttribute('scale', {
+        x: scale,
+        y: scale,
+        z: scale
+      });
+      
+      // Enhanced centering with better depth positioning
+      const center = box.getCenter(new THREE.Vector3());
+      currentModel.object3D.position.x = -center.x * scale;
+      currentModel.object3D.position.y = (-center.y * scale) + 0.2; // Slight vertical adjustment
+      currentModel.object3D.position.z = -center.z * scale;
+      
+      modelContainer.setAttribute('position', CONFIG.modelPosition);
+    }
+
+    // Optimize modal model view for perfect side view
+    function optimizeModalModelView() {
+      if (!modalCurrentModel || !modalCurrentModel.object3D) return;
+      
+      const box = new THREE.Box3().setFromObject(modalCurrentModel.object3D);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.5 / maxDim;
+      
+      modalCurrentModel.setAttribute('scale', {
+        x: scale,
+        y: scale,
+        z: scale
+      });
+      
+      // Perfect centering for modal view
+      const center = box.getCenter(new THREE.Vector3());
+      modalCurrentModel.object3D.position.x = -center.x * scale;
+      modalCurrentModel.object3D.position.y = -center.y * scale;
+      modalCurrentModel.object3D.position.z = -center.z * scale;
+      
+      // Reset to perfect side view
+      resetModalView();
+    }
+
+    // Animation loop with smooth rotation
+    function animate() {
+      if (isRotating && currentModel) {
+        const rotation = modelContainer.getAttribute('rotation');
+        rotation.y += CONFIG.rotationSpeed * (modalIsRotating ? 1 : 0);
+        modelContainer.setAttribute('rotation', rotation);
+      }
+      
+      if (modalIsRotating && modalCurrentModel && modalOverlay.classList.contains('active')) {
+        const rotation = modalModelContainer.getAttribute('rotation');
+        rotation.y += CONFIG.modalRotationSpeed;
+        modalModelContainer.setAttribute('rotation', rotation);
+      }
+      
+      requestAnimationFrame(animate);
+    }
+
+    // Reset modal view to perfect centered side view
+    function resetModalView() {
+      modalModelContainer.setAttribute('rotation', {
+        x: 0,
+        y: CONFIG.modalSideViewAngle,
+        z: 0
+      });
+      
+      modalModelContainer.setAttribute('position', CONFIG.modalDefaultPosition);
+      currentModalAngleIndex = CONFIG.modalAngles.indexOf(CONFIG.modalSideViewAngle);
+    }
+
+    // Rotate to specific angle in modal with smooth transition
+    function rotateToAngle(index) {
+      if (isModalTransitioning) return;
+      
+      isModalTransitioning = true;
+      currentModalAngleIndex = index;
+      
+      const targetRotation = {
+        y: CONFIG.modalAngles[index]
+      };
+      
+      modalModelContainer.setAttribute('animation', {
+        property: 'rotation',
+        to: `${targetRotation.y} 0 0`,
+        dur: CONFIG.modalTransitionDuration,
+        easing: 'easeInOutQuad'
+      });
+      
+      setTimeout(() => {
+        isModalTransitioning = false;
+        modalModelContainer.removeAttribute('animation');
+      }, CONFIG.modalTransitionDuration);
+    }
+
+    // Navigate to next angle
+    function nextAngle() {
+      const nextIndex = (currentModalAngleIndex + 1) % CONFIG.modalAngles.length;
+      rotateToAngle(nextIndex);
+    }
+
+    // Navigate to previous angle
+    function prevAngle() {
+      const prevIndex = (currentModalAngleIndex - 1 + CONFIG.modalAngles.length) % CONFIG.modalAngles.length;
+      rotateToAngle(prevIndex);
+    }
+
+    // Smooth zoom toggle
+    function toggleZoom() {
+      currentZoomIndex = (currentZoomIndex + 1) % CONFIG.modalZoomLevels.length;
+      const zoomLevel = CONFIG.modalZoomLevels[currentZoomIndex];
+      
+      modalCamera.setAttribute('animation', {
+        property: 'camera.zoom',
+        to: zoomLevel,
+        dur: CONFIG.zoomTransitionDuration,
+        easing: 'easeInOutQuad'
+      });
+      
+      setTimeout(() => {
+        modalCamera.removeAttribute('animation');
+      }, CONFIG.zoomTransitionDuration);
+      
+      // Show zoom indicator
+      zoomIndicator.textContent = currentZoomIndex === 0 ? "Zoomed out" : "Zoomed in";
+      zoomIndicator.classList.add('show');
+      if (zoomTimeout) clearTimeout(zoomTimeout);
+      zoomTimeout = setTimeout(() => {
+        zoomIndicator.classList.remove('show');
+      }, 2000);
+    }
+
+    // Reset zoom to default
+    function resetZoom() {
+      currentZoomIndex = 0;
+      modalCamera.setAttribute('camera', 'zoom', CONFIG.modalZoomLevels[0]);
+    }
+
+    // Handle double click/tap for zoom
+    function handleDoubleClick(e) {
+      const currentTime = new Date().getTime();
+      const clickGap = currentTime - lastClickTime;
+      
+      if (clickGap < 300 && clickGap > 0) {
+        toggleZoom();
+      }
+      
+      lastClickTime = currentTime;
+    }
+
+    // Open modal with perfect side view
+    function openModal() {
+      modalOverlay.classList.add('active');
+      resetModalView();
+      resetZoom();
+      
+      // Set up double-click/tap listener
+      modalScene.addEventListener('click', handleDoubleClick);
+    }
+
+    // Close modal
+    function closeModal() {
+      modalOverlay.classList.remove('active');
+      modalScene.removeEventListener('click', handleDoubleClick);
+    }
+
+    // Initialize the premium viewer
+    async function initializeViewer() {
+      // Initialize camera
+      await initializeCamera();
+      
+      // Set up main controls
+      toggleRotationBtn.addEventListener('click', () => {
+        isRotating = !isRotating;
+        toggleRotationBtn.textContent = isRotating ? "⏸ Pause" : "▶ Play";
+      });
+      
+      resetViewBtn.addEventListener('click', () => {
+        modelContainer.setAttribute('rotation', '0 0 0');
+        modelContainer.setAttribute('position', CONFIG.modelPosition);
+        document.querySelector('#orbit-controls').components['orbit-controls'].reset();
+      });
+      
+      toggleCameraBtn.addEventListener('click', () => {
+        CONFIG.cameraActive = !CONFIG.cameraActive;
+        if (CONFIG.cameraActive) {
+          cameraFeed.style.display = 'block';
+          scene.setAttribute('background', 'transparent: true');
+          toggleCameraBtn.textContent = "📷 Hide AR";
+        } else {
+          cameraFeed.style.display = 'none';
+          scene.setAttribute('background', 'color: #333');
+          toggleCameraBtn.textContent = "📷 Show AR";
+        }
+      });
+      
+      // Set up modal controls
+      modalToggleRotationBtn.addEventListener('click', () => {
+        modalIsRotating = !modalIsRotating;
+        modalToggleRotationBtn.textContent = modalIsRotating ? "⏸ Pause" : "▶ Play";
+      });
+      
+      modalResetViewBtn.addEventListener('click', resetModalView);
+      modalResetZoomBtn.addEventListener('click', resetZoom);
+      
+      modalArrowLeft.addEventListener('click', prevAngle);
+      modalArrowRight.addEventListener('click', nextAngle);
+      closeModalBtn.addEventListener('click', closeModal);
+      view360Btn.addEventListener('click', openModal);
+      
+      // Enhanced keyboard controls
+      document.addEventListener('keydown', (e) => {
+        if (modalOverlay.classList.contains('active')) {
+          switch(e.key) {
+            case 'ArrowLeft': prevAngle(); break;
+            case 'ArrowRight': nextAngle(); break;
+            case 'Escape': closeModal(); break;
+            case 'z':
+            case 'Z': toggleZoom(); break;
+            case 'r':
+            case 'R': resetModalView(); break;
           }
-        }, 1000);
+        }
       });
       
-      model.addEventListener('model-error', (e) => {
-        log(`✗ Model error: ${e.detail.message || 'Unknown error'}`);
-        loading.innerHTML = "Model failed to load. Trying fallback...";
-        showFallbackModel();
-      });
+      // Load models and start animation
+      loadModel();
+      loadModalModel();
+      animate();
     }
-    
-    function setupDesktopControls() {
-      const model = document.getElementById('model');
-      let isDragging = false;
-      let previousPosition = { x: 0, y: 0 };
-      let rotation = { x: 0, y: 180 };
-      
-      scene.addEventListener('loaded', () => {
-        window.addEventListener('mousedown', (e) => {
-          isDragging = true;
-          previousPosition = { x: e.clientX, y: e.clientY };
-        });
-        
-        window.addEventListener('mousemove', (e) => {
-          if (!isDragging) return;
-          const delta = {
-            x: e.clientX - previousPosition.x,
-            y: e.clientY - previousPosition.y
-          };
-          
-          rotation.y += delta.x * 0.5;
-          rotation.x -= delta.y * 0.5;
-          
-          model.setAttribute('rotation', {
-            x: rotation.x,
-            y: rotation.y,
-            z: 0
-          });
-          
-          previousPosition = { x: e.clientX, y: e.clientY };
-        });
-        
-        window.addEventListener('mouseup', () => {
-          isDragging = false;
-        });
-        
-        log("Desktop controls initialized");
-      });
-    }
-    
-    function updateBoundingBox(bbox) {
-      const size = bbox.getSize(new THREE.Vector3());
-      const center = bbox.getCenter(new THREE.Vector3());
-      
-      log(`Model center: ${center.toArray()}, Size: ${size.toArray()}`);
-      
-      boundingBox.style.display = 'block';
-      boundingBox.style.width = `${size.x * 100}px`;
-      boundingBox.style.height = `${size.y * 100}px`;
-      boundingBox.style.transform = `translate(
-        ${window.innerWidth/2 + center.x * 50}px,
-        ${window.innerHeight/2 - center.y * 50}px
-      )`;
-    }
-    
-    function showFallbackModel() {
-      log("Loading fallback model...");
-      const model = document.getElementById('model');
-      model.setAttribute('gltf-model', {
-        src: CONFIG.fallbackModelUrl,
-        crossorigin: 'anonymous'
-      });
-      model.setAttribute('scale', '0.5 0.5 0.5');
-    }
-    
-    // Start initialization
-    log(`Initializing for ${isMobile ? 'mobile' : 'desktop'} device`);
-    log(`Using model: ${CONFIG.modelUrl}`);
-    initializeViewer();
+
+    // Start the premium experience
+    scene.addEventListener('loaded', initializeViewer);
   </script>
 </body>
 </html>
