@@ -310,6 +310,24 @@
       display: none;
     }
 
+    /* Wireframe toggle */
+    #wireframe-btn {
+      position: fixed;
+      top: 70px;
+      left: 20px;
+      background: rgba(40, 40, 40, 0.8);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      padding: 8px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      z-index: 1001;
+    }
+
     @media (max-width: 768px) {
       #controls {
         bottom: 15px;
@@ -337,6 +355,13 @@
         height: 45px;
         font-size: 18px;
       }
+      
+      #wireframe-btn {
+        top: 60px;
+        left: 10px;
+        padding: 6px 12px;
+        font-size: 12px;
+      }
     }
   </style>
 </head>
@@ -350,6 +375,8 @@
     <span id="desktop-help">Created By Wiseforce</span>
     <span id="mobile-help" style="display:none">Created By Wiseforce</span>
   </div>
+  
+  <button id="wireframe-btn">◻ Wireframe Off</button>
   
   <div id="controls">
     <button id="toggle-rotation">⏸ Pause</button>
@@ -409,6 +436,7 @@
         <button id="modal-toggle-rotation">⏸ Pause</button>
         <button id="modal-reset-view">↻ Reset</button>
         <button id="modal-reset-zoom">🔍 Reset Zoom</button>
+        <button id="modal-wireframe-btn">◻ Wireframe</button>
       </div>
     </div>
   </div>
@@ -465,7 +493,8 @@
       modalDefaultPosition: "0 0 -1.5",
       isMobile: /Mobi|Android/i.test(navigator.userAgent),
       moveStep: 0.2,
-      gyroEnabled: false
+      gyroEnabled: false,
+      wireframeEnabled: false
     };
 
     // DOM elements
@@ -489,6 +518,7 @@
     const modalToggleRotationBtn = document.getElementById('modal-toggle-rotation');
     const modalResetViewBtn = document.getElementById('modal-reset-view');
     const modalResetZoomBtn = document.getElementById('modal-reset-zoom');
+    const modalWireframeBtn = document.getElementById('modal-wireframe-btn');
     const modalArrowLeft = document.getElementById('modal-arrow-left');
     const modalArrowRight = document.getElementById('modal-arrow-right');
     const closeModalBtn = document.getElementById('close-modal');
@@ -501,6 +531,7 @@
     const gyroIndicator = document.getElementById('gyro-indicator');
     const cameraEntity = document.getElementById('camera');
     const orbitControls = document.getElementById('orbit-controls');
+    const wireframeBtn = document.getElementById('wireframe-btn');
 
     // App state
     let isRotating = true;
@@ -594,6 +625,34 @@
         gyroIndicator.style.display = 'none';
         // Re-enable orbit controls
         orbitControls.setAttribute('orbit-controls', 'enabled', true);
+      }
+    }
+
+    // Toggle wireframe mode
+    function toggleWireframe() {
+      CONFIG.wireframeEnabled = !CONFIG.wireframeEnabled;
+      wireframeBtn.textContent = CONFIG.wireframeEnabled ? "◻ Wireframe On" : "◻ Wireframe Off";
+      
+      if (currentModel && currentModel.object3D) {
+        currentModel.object3D.traverse(function(node) {
+          if (node.isMesh) {
+            node.material.wireframe = CONFIG.wireframeEnabled;
+          }
+        });
+      }
+    }
+
+    // Toggle modal wireframe mode
+    function toggleModalWireframe() {
+      CONFIG.wireframeEnabled = !CONFIG.wireframeEnabled;
+      modalWireframeBtn.textContent = CONFIG.wireframeEnabled ? "◻ Wireframe On" : "◻ Wireframe Off";
+      
+      if (modalCurrentModel && modalCurrentModel.object3D) {
+        modalCurrentModel.object3D.traverse(function(node) {
+          if (node.isMesh) {
+            node.material.wireframe = CONFIG.wireframeEnabled;
+          }
+        });
       }
     }
 
@@ -930,6 +989,10 @@
       // Set up touch controls
       setupTouchControls();
       
+      // Set up wireframe toggle
+      wireframeBtn.addEventListener('click', toggleWireframe);
+      modalWireframeBtn.addEventListener('click', toggleModalWireframe);
+      
       // Set up main controls
       toggleRotationBtn.addEventListener('click', () => {
         isRotating = !isRotating;
@@ -982,6 +1045,8 @@
             case 'Z': toggleZoom(); break;
             case 'r':
             case 'R': resetModalView(); break;
+            case 'w':
+            case 'W': toggleModalWireframe(); break;
           }
         } else {
           switch(e.key) {
@@ -993,6 +1058,8 @@
             case 'C': moveModel('center'); break;
             case 'g':
             case 'G': toggleGyro(); break;
+            case 'w':
+            case 'W': toggleWireframe(); break;
           }
         }
       });
