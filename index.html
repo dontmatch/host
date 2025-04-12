@@ -11,6 +11,9 @@
       overflow: hidden;
       font-family: 'Arial', sans-serif;
       touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     #loading {
@@ -240,6 +243,73 @@
       opacity: 1;
     }
 
+    /* Movement controls */
+    #movement-controls {
+      position: fixed;
+      bottom: 150px;
+      right: 20px;
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .movement-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(40, 40, 40, 0.7);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+
+    .movement-btn:active {
+      background: rgba(70, 70, 70, 0.9);
+    }
+
+    #move-up {
+      order: 1;
+    }
+
+    #move-left {
+      order: 2;
+    }
+
+    #move-right {
+      order: 3;
+    }
+
+    #move-down {
+      order: 4;
+    }
+
+    #move-center {
+      order: 5;
+      margin-top: 10px;
+      background: rgba(30, 136, 229, 0.7);
+    }
+
+    /* Gyroscope indicator */
+    #gyro-indicator {
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      z-index: 1001;
+      display: none;
+    }
+
     @media (max-width: 768px) {
       #controls {
         bottom: 15px;
@@ -256,6 +326,17 @@
         bottom: 80px;
         padding: 10px 15px;
       }
+      
+      #movement-controls {
+        bottom: 120px;
+        right: 10px;
+      }
+      
+      .movement-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+      }
     }
   </style>
 </head>
@@ -266,7 +347,7 @@
   </div>
   
   <div id="help-text">
-    <span id="desktop-help">Desktop: Left drag to rotate • Right drag to pan • Scroll to zoom</span>
+    <span id="desktop-help">Created By Wiseforce</span>
     <span id="mobile-help" style="display:none">Touch and drag to rotate • Pinch to zoom</span>
   </div>
   
@@ -274,9 +355,22 @@
     <button id="toggle-rotation">⏸ Pause</button>
     <button id="reset-view">↻ Reset</button>
     <button id="toggle-camera">📷 Toggle AR</button>
+    <button id="toggle-gyro">🔄 Gyro Off</button>
   </div>
 
   <button id="view-360-btn">🌐 360° View</button>
+  
+  <!-- Movement controls -->
+  <div id="movement-controls">
+    <button class="movement-btn" id="move-up">↑</button>
+    <button class="movement-btn" id="move-left">←</button>
+    <button class="movement-btn" id="move-right">→</button>
+    <button class="movement-btn" id="move-down">↓</button>
+    <button class="movement-btn" id="move-center">⌂</button>
+  </div>
+  
+  <!-- Gyroscope indicator -->
+  <div id="gyro-indicator">Gyroscope Active</div>
 
   <!-- Camera feed for background -->
   <video id="camera-feed" autoplay playsinline></video>
@@ -332,7 +426,7 @@
       <!-- Model will be placed here -->
     </a-entity>
     
-    <a-entity camera position="0 1.5 2" look-controls="enabled: false">
+    <a-entity id="camera" camera position="0 1.5 2" look-controls="enabled: false">
       <a-cursor></a-cursor>
     </a-entity>
     
@@ -363,13 +457,15 @@
       modelPosition: "0 0.5 -1",
       cameraActive: true,
       modalRotationSpeed: 0.5,
-      modalAngles: [0, 90, 180, 270],
+      modalAngles: [0, 90, 180, 270], // 0° (front), 90° (side), 180° (back), 270° (other side)
       modalTransitionDuration: 600,
       modalZoomLevels: [1, 1.8],
       zoomTransitionDuration: 400,
-      modalSideViewAngle: 90,
+      modalSideViewAngle: 90, // Default side view angle
       modalDefaultPosition: "0 0 -1.5",
-      isMobile: /Mobi|Android/i.test(navigator.userAgent)
+      isMobile: /Mobi|Android/i.test(navigator.userAgent),
+      moveStep: 0.2,
+      gyroEnabled: false
     };
 
     // DOM elements
@@ -380,6 +476,7 @@
     const toggleRotationBtn = document.getElementById('toggle-rotation');
     const resetViewBtn = document.getElementById('reset-view');
     const toggleCameraBtn = document.getElementById('toggle-camera');
+    const toggleGyroBtn = document.getElementById('toggle-gyro');
     const cameraFeed = document.getElementById('camera-feed');
     const helpText = document.getElementById('help-text');
     const desktopHelp = document.getElementById('desktop-help');
@@ -396,6 +493,14 @@
     const modalArrowRight = document.getElementById('modal-arrow-right');
     const closeModalBtn = document.getElementById('close-modal');
     const zoomIndicator = document.getElementById('zoom-indicator');
+    const moveUpBtn = document.getElementById('move-up');
+    const moveLeftBtn = document.getElementById('move-left');
+    const moveRightBtn = document.getElementById('move-right');
+    const moveDownBtn = document.getElementById('move-down');
+    const moveCenterBtn = document.getElementById('move-center');
+    const gyroIndicator = document.getElementById('gyro-indicator');
+    const cameraEntity = document.getElementById('camera');
+    const orbitControls = document.getElementById('orbit-controls');
 
     // App state
     let isRotating = true;
@@ -409,6 +514,12 @@
     let currentZoomIndex = 0;
     let lastClickTime = 0;
     let zoomTimeout = null;
+    let gyroAvailable = false;
+    let originalModelPosition = { x: 0, y: 0.5, z: -1 };
+    let currentModelPosition = { ...originalModelPosition };
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isDragging = false;
 
     // Show appropriate help text
     if (CONFIG.isMobile) {
@@ -438,6 +549,115 @@
         scene.setAttribute('background', 'color: #333');
         return false;
       }
+    }
+
+    // Check for gyroscope support
+    function checkGyroSupport() {
+      if (window.DeviceOrientationEvent && 'ontouchstart' in window) {
+        window.addEventListener('deviceorientation', handleOrientation);
+        gyroAvailable = true;
+        gyroIndicator.style.display = 'block';
+        toggleGyroBtn.style.display = 'block';
+        return true;
+      }
+      toggleGyroBtn.style.display = 'none';
+      return false;
+    }
+
+    // Handle device orientation for gyroscope control
+    function handleOrientation(event) {
+      if (!CONFIG.gyroEnabled || !currentModel) return;
+      
+      // Use beta (front-to-back tilt) and gamma (left-to-right tilt)
+      const beta = event.beta;  // -180 to 180
+      const gamma = event.gamma; // -90 to 90
+      
+      if (beta !== null && gamma !== null) {
+        // Adjust model rotation based on device orientation
+        const rotation = modelContainer.getAttribute('rotation');
+        rotation.x = THREE.MathUtils.clamp(gamma * 0.5, -45, 45);
+        rotation.z = THREE.MathUtils.clamp(beta * 0.5 - 90, -180, 0);
+        modelContainer.setAttribute('rotation', rotation);
+      }
+    }
+
+    // Toggle gyroscope controls
+    function toggleGyro() {
+      CONFIG.gyroEnabled = !CONFIG.gyroEnabled;
+      toggleGyroBtn.textContent = CONFIG.gyroEnabled ? "🔄 Gyro On" : "🔄 Gyro Off";
+      
+      if (CONFIG.gyroEnabled) {
+        gyroIndicator.style.display = 'block';
+        // Disable orbit controls when gyro is active
+        orbitControls.setAttribute('orbit-controls', 'enabled', false);
+      } else {
+        gyroIndicator.style.display = 'none';
+        // Re-enable orbit controls
+        orbitControls.setAttribute('orbit-controls', 'enabled', true);
+      }
+    }
+
+    // Handle model movement
+    function moveModel(direction) {
+      switch(direction) {
+        case 'up':
+          currentModelPosition.y += CONFIG.moveStep;
+          break;
+        case 'down':
+          currentModelPosition.y -= CONFIG.moveStep;
+          break;
+        case 'left':
+          currentModelPosition.x -= CONFIG.moveStep;
+          break;
+        case 'right':
+          currentModelPosition.x += CONFIG.moveStep;
+          break;
+        case 'center':
+          currentModelPosition = { ...originalModelPosition };
+          break;
+      }
+      
+      modelContainer.setAttribute('position', {
+        x: currentModelPosition.x,
+        y: currentModelPosition.y,
+        z: currentModelPosition.z
+      });
+    }
+
+    // Handle touch events for model movement
+    function setupTouchControls() {
+      if (!CONFIG.isMobile) return;
+      
+      const sceneEl = document.querySelector('a-scene');
+      
+      sceneEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          isDragging = true;
+        }
+      });
+      
+      sceneEl.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging && !CONFIG.gyroEnabled) {
+          const touchX = e.touches[0].clientX;
+          const touchY = e.touches[0].clientY;
+          const deltaX = touchX - touchStartX;
+          const deltaY = touchY - touchStartY;
+          
+          const rotation = modelContainer.getAttribute('rotation');
+          rotation.y += deltaX * 0.5;
+          rotation.x += deltaY * 0.5;
+          modelContainer.setAttribute('rotation', rotation);
+          
+          touchStartX = touchX;
+          touchStartY = touchY;
+        }
+      });
+      
+      sceneEl.addEventListener('touchend', () => {
+        isDragging = false;
+      });
     }
 
     // Load the main model with enhanced error handling
@@ -528,6 +748,12 @@
       currentModel.object3D.position.z = -center.z * scale;
       
       modelContainer.setAttribute('position', CONFIG.modelPosition);
+      originalModelPosition = {
+        x: parseFloat(CONFIG.modelPosition.split(' ')[0]),
+        y: parseFloat(CONFIG.modelPosition.split(' ')[1]),
+        z: parseFloat(CONFIG.modelPosition.split(' ')[2])
+      };
+      currentModelPosition = { ...originalModelPosition };
     }
 
     // Optimize modal model view for perfect side view
@@ -551,13 +777,20 @@
       modalCurrentModel.object3D.position.y = -center.y * scale;
       modalCurrentModel.object3D.position.z = -center.z * scale;
       
-      // Reset to perfect side view
-      resetModalView();
+      // Set to perfect side view (90°) without animation
+      modalModelContainer.setAttribute('rotation', {
+        x: 0,
+        y: CONFIG.modalSideViewAngle,
+        z: 0
+      });
+      
+      // Update current angle index
+      currentModalAngleIndex = CONFIG.modalAngles.indexOf(CONFIG.modalSideViewAngle);
     }
 
     // Animation loop with smooth rotation
     function animate() {
-      if (isRotating && currentModel) {
+      if (isRotating && currentModel && !CONFIG.gyroEnabled) {
         const rotation = modelContainer.getAttribute('rotation');
         rotation.y += CONFIG.rotationSpeed * (modalIsRotating ? 1 : 0);
         modelContainer.setAttribute('rotation', rotation);
@@ -684,6 +917,19 @@
       // Initialize camera
       await initializeCamera();
       
+      // Check for gyroscope support
+      checkGyroSupport();
+      
+      // Set up movement controls
+      moveUpBtn.addEventListener('click', () => moveModel('up'));
+      moveDownBtn.addEventListener('click', () => moveModel('down'));
+      moveLeftBtn.addEventListener('click', () => moveModel('left'));
+      moveRightBtn.addEventListener('click', () => moveModel('right'));
+      moveCenterBtn.addEventListener('click', () => moveModel('center'));
+      
+      // Set up touch controls
+      setupTouchControls();
+      
       // Set up main controls
       toggleRotationBtn.addEventListener('click', () => {
         isRotating = !isRotating;
@@ -692,7 +938,7 @@
       
       resetViewBtn.addEventListener('click', () => {
         modelContainer.setAttribute('rotation', '0 0 0');
-        modelContainer.setAttribute('position', CONFIG.modelPosition);
+        moveModel('center');
         document.querySelector('#orbit-controls').components['orbit-controls'].reset();
       });
       
@@ -708,6 +954,8 @@
           toggleCameraBtn.textContent = "📷 Show AR";
         }
       });
+      
+      toggleGyroBtn.addEventListener('click', toggleGyro);
       
       // Set up modal controls
       modalToggleRotationBtn.addEventListener('click', () => {
@@ -734,6 +982,17 @@
             case 'Z': toggleZoom(); break;
             case 'r':
             case 'R': resetModalView(); break;
+          }
+        } else {
+          switch(e.key) {
+            case 'ArrowUp': moveModel('up'); break;
+            case 'ArrowDown': moveModel('down'); break;
+            case 'ArrowLeft': moveModel('left'); break;
+            case 'ArrowRight': moveModel('right'); break;
+            case 'c':
+            case 'C': moveModel('center'); break;
+            case 'g':
+            case 'G': toggleGyro(); break;
           }
         }
       });
