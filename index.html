@@ -454,7 +454,7 @@
     // Enhanced Configuration
     const CONFIG = {
       rotationSpeed: 0.5,
-      modelPosition: "0 0 -2",
+      modelPosition: "0 1 -2",
       cameraActive: true,
       modalRotationSpeed: 0.5,
       modalAngles: [0, 90, 180, 270], // 0° (front), 90° (side), 180° (back), 270° (other side)
@@ -744,7 +744,7 @@
       // Enhanced centering with better depth positioning
       const center = box.getCenter(new THREE.Vector3());
       currentModel.object3D.position.x = (-center.x * scale);
-      currentModel.object3D.position.y = (-center.y * scale) + .9; // Slight vertical adjustment
+      currentModel.object3D.position.y = (-center.y * scale); // Slight vertical adjustment
       currentModel.object3D.position.z = (-center.z * scale);
       
       modelContainer.setAttribute('position', CONFIG.modelPosition);
